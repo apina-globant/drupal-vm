@@ -125,7 +125,12 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     if synced_folder.include?('options_override')
       options = options.merge(synced_folder['options_override'])
     end
-    config.vm.synced_folder synced_folder['local_path'], synced_folder['destination'], options
+
+    if synced_folder['type'] == 'nfs' && vconfig['unix_host']
+      config.vm.synced_folder synced_folder['local_path'], synced_folder['destination'], :nfs => 'nfs', :mount_options => ['rw', 'vers=3', 'tcp', 'fsc' ,'actimeo=2'], :linux__nfs_options => ['rw','no_subtree_check','all_squash','async']
+    else
+      config.vm.synced_folder synced_folder['local_path'], synced_folder['destination'], options
+    end
   end
 
   # Allow override of the default synced folder type.
