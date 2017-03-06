@@ -3,10 +3,10 @@
   remote_user: vagrant
   roles:
     - { role: drupal,
-        hostname: "initd8.globant.dev",
-        dir: "drupal",
-        db_name: "dbinit",
-        profile: "init",
-        repository: "git@github.com:apina-globant/d8-init.git",
-        branch: "master"
+        hostname: "initd8.globant.dev", # Url of the local site.
+        dir: "drupal", # Directory that will be create in the  projects folder.
+        db_name: "dbinit", # Name of the database that will Drupal use.
+        profile: "init", # Name of the installation profile.
+        repository: "git@github.com:apina-globant/d8-init.git", # Repository URL.
+        branch: "master" # Branch of the repository that cloned for this site.
       }
