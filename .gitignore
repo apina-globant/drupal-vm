@@ -27,3 +27,5 @@ drupal/
 !provisioning/roles/**/config.yml
 
 !scripts/deploy/roles/**
+!scripts/deploy/sites/example.yml
+scripts/deploy/sites/*.yml
