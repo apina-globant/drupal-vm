@@ -21,10 +21,6 @@ drupal.make.yml
 Vagrantfile.local
 examples/prod/inventory
 examples/prod/bootstrap/vars.yml
-!scripts/
-!scripts/provision
-!scripts/provision/*
-!scripts/pre_provision.sh
 drupal/
 
 # Some roles include 'config.yml' files.
