@@ -1,0 +1,2 @@
+server_path: '/var/www/sites'
+server_path_tmp: '/var/www/sites'

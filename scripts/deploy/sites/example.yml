@@ -1,0 +1,12 @@
+- hosts: all
+  become: yes
+  remote_user: vagrant
+  roles:
+    - { role: drupal,
+        hostname: "initd8.globant.dev",
+        dir: "drupal",
+        db_name: "dbinit",
+        profile: "init",
+        repository: "git@github.com:apina-globant/d8-init.git",
+        branch: "master"
+      }

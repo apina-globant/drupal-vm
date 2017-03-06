@@ -1,0 +1,166 @@
+- name: Preparate delete {{ dir }} folder
+  file:
+    path: "{{ server_path }}/{{ dir }}"
+    mode: 0777
+    recurse: yes
+    state: directory
+
+- name: Delete folder {{ dir }}
+  file:
+    path: "{{ server_path }}/{{ dir }}"
+    state: absent
+
+- name: clone repository {{ repository }} project
+  git: repo={{ repository }} depth=1 dest={{ server_path }}/{{ dir }} accept_hostkey=yes version={{ branch }}
+  become_user: vagrant
+  become: no
+
+- name: Composer Install
+  shell: >
+    composer install --no-interaction --no-progress --profile --prefer-dist
+  args:
+    chdir: "{{ server_path }}/{{ dir }}"
+  become_user: vagrant
+  become: no
+
+- name: Drop current database {{ db_name }}
+  mysql_db:
+    name: "{{ db_name }}"
+    state: absent
+
+- name: Create a new database {{ db_name }}
+  mysql_db:
+    name:  "{{ db_name }}"
+    state: present
+
+- name: Create a user database - {{ db_name }}_user
+  mysql_user:
+    name: "{{ db_name }}_user"
+    password: "{{ db_name }}_pass"
+    priv: "{{ db_name }}.*:ALL"
+    state: present
+
+- name: Site Install {{ hostname }}
+  shell: >
+    /usr/local/bin/drush si {{ profile }} install_configure_form.update_status_module='array(FALSE,FALSE)' --account-name=admin --account-pass=admin --db-url=mysql://{{ db_name }}_user:{{ db_name }}_pass@127.0.0.1/{{ db_name }} --y
+  args:
+    chdir: "{{ server_path }}/{{ dir }}/web"
+  become_user: vagrant
+  become: False
+
+- name: Change permissions default folder
+  file:
+    path: "{{ server_path }}/{{ dir }}/web/sites/default"
+    mode: 0777
+    recurse: yes
+  become: yes
+
+- name: Set UUID {{ hostname}} 
+  script: /tmp/deploy/roles/drupal/templates/update_uuid.sh {{ dir }} {{ server_path }}
+  args:
+    chdir: "{{ server_path }}/{{ dir }}/web"
+  become_user: vagrant
+  become: no
+
+- name: update path SYNC on settings.php for {{ hostname }}
+  become: yes
+  lineinfile:
+      dest={{ server_path }}/{{ dir }}/web/sites/default/settings.php
+      regexp="^\\$config_directories\\['sync'\\]"
+      state=present
+      line="$config_directories['sync'] = '{{ server_path }}/{{ dir }}/config/sync';"
+      backrefs=yes
+
+- name: update file_chmod_directory on settings.php for {{ hostname }}
+  become: yes
+  lineinfile:
+      dest={{ server_path }}/{{ dir }}/web/sites/default/settings.php
+      regexp="^\\# \\$settings\\['file_chmod_directory'\\]"
+      state=present
+      line="$settings['file_chmod_directory'] = 0777;"
+      backrefs=yes
+
+- name: update file_chmod_file on settings.php for {{ hostname }}
+  become: yes
+  lineinfile:
+      dest={{ server_path }}/{{ dir }}/web/sites/default/settings.php
+      regexp="^\\# \\$settings\\['file_chmod_file'\\]"
+      state=present
+      line="$settings['file_chmod_file'] = 0777;"
+      backrefs=yes
+
+- name: clear cache for {{ hostname }}
+  command: /usr/local/bin/drush cache-rebuild
+  become: no
+  args:
+    chdir: "{{ server_path }}/{{ dir }}/web"
+
+- name: Config import for {{ hostname }}
+  shell: >
+    /usr/local/bin/drush config-import --skip-modules=devel --y
+  become: no
+  args:
+    chdir: "{{ server_path }}/{{ dir }}/web"
+
+- name: symlink to {{ hostname }}
+  command: ln -s {{ server_path }}/{{ dir }}/web /usr/share/nginx/html/{{ dir }}
+  become: yes
+
+- name: validate sites dir exist
+  stat: path=/files_sites
+  register: files_sites_exist
+
+- name: Create files_sites dir
+  file:
+    path: "/files_sites"
+    state: directory
+    mode: 0777
+    owner: vagrant
+    group: vagrant
+  when: files_sites_exist.stat.exists == True
+
+- name: validate site dir for {{ hostname }}
+  stat: path=/files_sites/{{ dir }}
+  register: files_exist
+
+- name: remove files dir if this exist
+  command: rm -rf /files_sites/{{ dir }}
+  when: files_exist.stat.exists == True
+
+- name: Create files dir
+  file:
+    path: "/files_sites/{{ dir }}"
+    state: directory
+    mode: 0777
+    owner: vagrant
+    group: vagrant
+
+- name: move files to {{ hostname }}
+  shell: >
+    cp -R {{ server_path }}/{{ dir }}/web/sites/default/files /files_sites/{{ dir }}/. &&
+    rm -rf {{ server_path }}/{{ dir }}/web/sites/default/files &&
+    chown vagrant:vagrant -R /files_sites/{{ dir }}/files &&
+    chmod -R 777 /files_sites/{{ dir }}/files
+
+- name: wait for remove files
+  pause:
+    seconds: 5
+    
+- name: symlink to files {{ hostname }}
+  file:
+    src: /files_sites/{{ dir }}/files
+    dest: "{{ server_path }}/{{ dir }}/web/sites/default/files"
+    state: link
+  become: no
+
+- name: Adjust folder web
+  command: rm -rf web
+  args:
+    chdir: "{{ server_path }}/{{ dir }}/web"
+
+- name: Configure vhost for {{ hostname }}
+  template: src=drupal.nginx.conf.j2 dest=/etc/nginx/conf.d/vhost.{{ hostname }}.conf
+  notify: restart nginx
+
+- name: add {{ hostname }} to file hosts
+  lineinfile: dest=/etc/hosts line="127.0.0.1 {{ hostname }}" state=present

@@ -1,0 +1,52 @@
+#! /bin/bash
+clear;
+START=$(date +%s)
+DEPLOY_DIR=$(cd $(dirname "$0"); pwd);
+SITES_DIR=$DEPLOY_DIR/sites;
+ROLES_DIR=$DEPLOY_DIR/roles;
+TMP_DEPLOY_DIR='/tmp/deploy';
+
+NC='\033[0m';
+RED='\033[0;31m';
+GREEN='\033[0;32m';
+
+cd $SITES_DIR;
+
+function execute_install() {
+	f="$1.yml";
+	echo $SITES_DIR/$f;
+	if [ ! -f $SITES_DIR/$f ]; then
+		echo -e "${RED}";
+		echo "###################################"
+	    echo "# Missing site file configuration #"
+		echo "###################################"
+		echo -e "${NC}";
+	else
+		if [ -d "$TMP_DEPLOY_DIR" ]; then
+			rm -rf $TMP_DEPLOY_DIR;
+		fi
+
+		mkdir $TMP_DEPLOY_DIR;
+
+		cp -R $ROLES_DIR $TMP_DEPLOY_DIR/roles;
+		cp -R $SITES_DIR/$f $TMP_DEPLOY_DIR/playbook.yml;
+
+		sudo -E pkill java;
+		sudo -E pkill geckodriver;
+		sudo -E pkill chromedriver;
+
+
+		echo -e "${GREEN}";
+	    echo "Application -> Execute install from: $f"
+		echo -e "${NC}";
+	  	ansible-playbook -i 'localhost,' $TMP_DEPLOY_DIR/playbook.yml --connection=local
+	fi
+}
+
+execute_install $1;
+
+END=$(date +%s)
+DIFF=$(( $END - $START ))
+echo -e "${GREEN}";
+echo "It took $DIFF seconds"
+echo -e "${NC}";
